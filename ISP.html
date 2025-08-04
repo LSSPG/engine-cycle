@@ -52,13 +52,7 @@
     </style>
 </head>
 <body>
-    <canvas id="rocketCanvas" width="800" height="600"></canvas>
-    <div class="info">
-        <h2>로켓 엔진 개념 시뮬레이션</h2>
-        <p><strong>추력 (Thrust):</strong> 질량 유량 × 배기 속도. 큰 값일수록 로켓이 빨리 올라갑니다.</p>
-        <p><strong>비추력 (Isp):</strong> 배기 속도 / 중력. 높을수록 효율이 좋습니다 (같은 연료로 더 멀리).</p>
-        <p>슬라이더를 조정하고 시작 버튼을 누르세요. 로켓이 올라가는 속도를 관찰하세요.</p>
-    </div>
+    <canvas id="rocketCanvas" width="100%" height="100%"></canvas>
     <div class="controls">
         <label>질량 유량 (kg/s): <input type="range" id="massFlow" min="1" max="10" value="5"></label><br>
         <label>배기 속도 (m/s): <input type="range" id="exhaustVel" min="1000" max="5000" value="3000" step="100"></label><br>
