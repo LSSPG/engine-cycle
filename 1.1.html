@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>로켓 추력 & 비추력(Isp) 애니메이션</title>
+  <style>
+    body { background: #222; color: #eee; font-family: sans-serif; text-align: center; margin: 0; }
+    #container { position: relative; width: 700px; margin: 20px auto; }
+    canvas { background: #000; display: block; border: 1px solid #444; }
+    #info { margin-top: 10px; }
+    #ispGauge {
+      position: absolute;
+      right: 10px; top: 10px;
+      width: 80px; height: 200px;
+      border: 2px solid #666; background: #111;
+    }
+    #ispFill {
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 100%; height: 0;
+      background: #0f0;
+    }
+    #ispText {
+      position: absolute;
+      width: 100%; top: 210px;
+      font-size: 14px; color: #0f0;
+    }
+  </style>
+</head>
+<body>
+  <h2>로켓 엔진 추력·비추력(Isp) 시각화</h2>
+  <div id="container">
+    <canvas id="canvas" width="700" height="600"></canvas>
+    <div id="ispGauge">
+      <div id="ispFill"></div>
+      <div id="ispText">Isp: 0 s</div>
+    </div>
+    <div id="info">
+      <p>노즐을 빠져나가는 가스 입자(흰 점) → 추력 벡터(파란 화살표) → 누적 Isp 게이지</p>
+    </div>
+  </div>
+  <script>
+    const c = document.getElementById('canvas');
+    const ctx = c.getContext('2d');
+    const gauge = document.getElementById('ispFill');
+    const ispText = document.getElementById('ispText');
+
+    const particles = [];
+    let frameCount = 0;
+    let impulseSum = 0;
+
+    function spawnParticle() {
+      // 노즐 throat 위치 (x=350±20, y=450)
+      particles.push({
+        x: 350 + (Math.random()*40 - 20),
+        y: 450,
+        vy: -(200 + Math.random()*200), // px/frame
+      });
+    }
+
+    function drawNozzle() {
+      ctx.fillStyle = '#444';
+      ctx.beginPath();
+      ctx.moveTo(300, 500);
+      ctx.lineTo(400, 500);
+      ctx.lineTo(360, 350);
+      ctx.lineTo(340, 350);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawThrustArrow(strength) {
+      // strength: 0~1
+      const len = 100 * strength;
+      ctx.strokeStyle = '#0af';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(350, 500);
+      ctx.lineTo(350, 500 + len);
+      ctx.moveTo(345, 500 + len - 10);
+      ctx.lineTo(350, 500 + len);
+      ctx.lineTo(355, 500 + len - 10);
+      ctx.stroke();
+    }
+
+    function updateGauge() {
+      // 평균 Isp ≈ impulseSum / (frameCount * 9.81)
+      const isp = (impulseSum / (frameCount * 9.81)) || 0;
+      const maxIsp = 350; // 게이지 상한
+      const h = Math.min(1, isp / maxIsp) * 200;
+      gauge.style.height = h + 'px';
+      ispText.textContent = 'Isp: ' + isp.toFixed(1) + ' s';
+    }
+
+    function loop() {
+      frameCount++;
+      ctx.clearRect(0, 0, c.width, c.height);
+
+      // 1) 스폰
+      if (frameCount % 2 === 0) spawnParticle();
+
+      // 2) 노즐
+      drawNozzle();
+
+      // 3) 파티클 이동·그리기
+      let thrustStrength = 0;
+      particles.forEach((p, i) => {
+        p.y += p.vy * 0.016; // 프레임당 px 이동 (approx 60fps)
+        // 노즐 벽 통과 못하게
+        // 그리기
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, 2*Math.PI);
+        ctx.fill();
+        // 캔버스 밖(위)으로 나가면 추력 기여
+        if (p.y < 0) {
+          // 임펄스 기여: vy 절대값의 10% 사용
+          impulseSum += Math.abs(p.vy) * 0.1;
+          thrustStrength += 1/5; // 동시 배출된 입자 수로 강도 계산
+          particles.splice(i,1);
+        }
+      });
+
+      // 4) 추력 화살표
+      drawThrustArrow(Math.min(1, thrustStrength));
+
+      // 5) 게이지 업데이트
+      updateGauge();
+
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
