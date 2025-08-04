@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로켓 엔진 추력과 비추력 시각화</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            margin: 20px auto;
+            border: 2px solid #fff;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 300px;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        button {
+            margin: 5px;
+            padding: 5px 10px;
+            background: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="rocketCanvas" width="800" height="600"></canvas>
+    <div class="info">
+        <h2>로켓 엔진 시뮬레이션</h2>
+        <p><strong>추력 (Thrust):</strong> 로켓을 밀어 올리는 힘. 질량 유량 × 배기 속도.</p>
+        <p><strong>비추력 (Isp):</strong> 효율성 지표. 단위 추진제로 발생하는 추력 지속 시간 (초).</p>
+        <p>슬라이더로 질량 유량과 배기 속도를 조정해 보세요. 추력이 증가하면 로켓 속도가 빨라지고, Isp가 높으면 더 효율적으로 올라갑니다.</p>
+    </div>
+    <div class="controls">
+        <label>질량 유량 (Mass Flow): <input type="range" id="massFlow" min="1" max="10" value="5"></label><br>
+        <label>배기 속도 (Exhaust Velocity): <input type="range" id="exhaustVel" min="1000" max="5000" value="3000" step="100"></label><br>
+        <button id="startBtn">시작</button>
+        <button id="resetBtn">리셋</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('rocketCanvas');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // 로켓 파라미터
+        let rocketY = height - 100;
+        let velocity = 0;
+        let thrust = 0;
+        let isp = 0;
+        let gravity = 9.81; // m/s², but scaled for sim
+        let mass = 1000; // 초기 질량 (임의)
+        let fuelMass = 500; // 연료 질량
+        let dt = 0.1; // 시간 스텝
+
+        // 파티클 (배기 가스) 배열
+        let particles = [];
+
+        // 슬라이더 요소
+        const massFlowInput = document.getElementById('massFlow');
+        const exhaustVelInput = document.getElementById('exhaustVel');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        let animating = false;
+
+        // 추력과 Isp 계산
+        function calculateThrustAndIsp() {
+            const massFlow = parseFloat(massFlowInput.value);
+            const exhaustVel = parseFloat(exhaustVelInput.value);
+            thrust = massFlow * exhaustVel; // Thrust = m_dot * v_e
+            isp = exhaustVel / gravity; // Isp = v_e / g
+        }
+
+        // 로켓 그리기
+        function drawRocket() {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.moveTo(width / 2 - 20, rocketY);
+            ctx.lineTo(width / 2 + 20, rocketY);
+            ctx.lineTo(width / 2, rocketY - 80);
+            ctx.closePath();
+            ctx.fill();
+
+            // 불꽃 (추력 표현)
+            if (animating && fuelMass > 0) {
+                ctx.fillStyle = 'orange';
+                ctx.beginPath();
+                ctx.moveTo(width / 2 - 15, rocketY);
+                ctx.lineTo(width / 2 + 15, rocketY);
+                ctx.lineTo(width / 2, rocketY + 50 + Math.random() * 20);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        // 파티클 (배기 가스) 생성 및 업데이트
+        function updateParticles() {
+            if (animating && fuelMass > 0) {
+                // 새 파티클 추가
+                for (let i = 0; i < 5; i++) {
+                    particles.push({
+                        x: width / 2 + (Math.random() - 0.5) * 20,
+                        y: rocketY + 10,
+                        vx: (Math.random() - 0.5) * 2,
+                        vy: 5 + Math.random() * 5,
+                        life: 1
+                    });
+                }
+            }
+
+            // 파티클 업데이트 및 그리기
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.02;
+                p.vy += 0.1; // 중력 효과
+
+                ctx.fillStyle = `rgba(255, 165, 0, ${p.life})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // 텍스트 표시 (추력, Isp, 속도 등)
+        function drawInfo() {
+            ctx.fillStyle = '#fff';
+            ctx.font = '16px Arial';
+            ctx.fillText(`추력: ${thrust.toFixed(0)} N`, width - 150, 30);
+            ctx.fillText(`비추력 (Isp): ${isp.toFixed(0)} 초`, width - 150, 60);
+            ctx.fillText(`속도: ${velocity.toFixed(2)} m/s`, width - 150, 90);
+            ctx.fillText(`남은 연료: ${fuelMass.toFixed(0)} kg`, width - 150, 120);
+        }
+
+        // 애니메이션 루프
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+
+            if (animating && fuelMass > 0) {
+                // 물리 업데이트
+                const acceleration = (thrust / mass) - gravity * 0.1; // 스케일링
+                velocity += acceleration * dt;
+                rocketY -= velocity * dt;
+
+                // 연료 소비
+                const massFlow = parseFloat(massFlowInput.value);
+                fuelMass -= massFlow * dt;
+                mass = 1000 - (500 - fuelMass); // 질량 업데이트
+
+                if (rocketY < -100) {
+                    rocketY = -100; // 화면 밖으로 나가지 않게
+                    velocity = 0;
+                }
+            }
+
+            drawRocket();
+            updateParticles();
+            drawInfo();
+
+            requestAnimationFrame(animate);
+        }
+
+        // 이벤트 리스너
+        startBtn.addEventListener('click', () => {
+            if (!animating) {
+                calculateThrustAndIsp();
+                animating = true;
+                startBtn.textContent = '정지';
+            } else {
+                animating = false;
+                startBtn.textContent = '시작';
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            animating = false;
+            startBtn.textContent = '시작';
+            rocketY = height - 100;
+            velocity = 0;
+            fuelMass = 500;
+            mass = 1000;
+            particles = [];
+        });
+
+        massFlowInput.addEventListener('input', calculateThrustAndIsp);
+        exhaustVelInput.addEventListener('input', calculateThrustAndIsp);
+
+        // 초기 계산
+        calculateThrustAndIsp();
+
+        // 애니메이션 시작
+        animate();
+    </script>
+</body>
+</html>
